@@ -36,9 +36,8 @@ private:
     juce::ListBox fileListBox;
     juce::StringArray loadedFiles;
 
-    // Variables for tracking playback position
-    double currentPlayheadPosition = 0.0;  // Track the current position of playback
-    double totalTrackLength = 0.0;  // Total length of the track for scaling
+    double currentPlayheadPosition = 0.0; 
+    double totalTrackLength = 0.0; 
 
     void openFileChooser();
     void createEmptyWavFile();
@@ -46,15 +45,12 @@ private:
 
     void drawWaveform(juce::Graphics& g, const juce::Rectangle<int>& bounds);
 
-    // ListBoxModel methods
     int getNumRows() override;
     void paintListBoxItem(int row, juce::Graphics& g, int width, int height, bool rowIsSelected) override;
     void listBoxItemClicked(int row, const juce::MouseEvent& e) override;
 
-    // Timer callback for updating playhead
     void timerCallback() override;
 
-    // New method to handle mouse click and seek
     void mouseDown(const juce::MouseEvent& e) override;
     
     juce::OwnedArray<TrackLine> trackLines;

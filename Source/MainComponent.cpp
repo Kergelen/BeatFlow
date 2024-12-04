@@ -78,7 +78,6 @@ void MainComponent::resized()
 {
     auto area = getLocalBounds();
     
-    // Place buttons at the top
     auto buttonHeight = 40;
     auto buttonArea = area.removeFromTop(buttonHeight);
     openFileButton.setBounds(buttonArea.removeFromLeft(150));
@@ -88,14 +87,12 @@ void MainComponent::resized()
     saveFileButton.setBounds(buttonArea.removeFromLeft(150));
     addTrackButton.setBounds(buttonArea);
 
-    // Reserve space for tracklines
     int trackHeight = 50;
     for (auto* track : trackLines)
     {
         track->setBounds(area.removeFromTop(trackHeight));
     }
 
-    // Remaining area for waveform
     fileListBox.setBounds(area.removeFromTop(100));
     trackLabel.setBounds(area.removeFromTop(40));
 }
@@ -131,7 +128,6 @@ void MainComponent::drawWaveform(juce::Graphics& g, const juce::Rectangle<int>& 
     g.setColour(juce::Colours::lightblue);
     thumbnail.drawChannels(g, bounds, 0.0, thumbnail.getTotalLength(), 1.0f);
 
-    // Set total track length
     totalTrackLength = thumbnail.getTotalLength();
 }
 
