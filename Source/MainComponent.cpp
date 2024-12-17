@@ -16,12 +16,15 @@ MainComponent::MainComponent()
     saveFileButton.onClick = [this]() { saveCurrentFile(); };
 
     addTrackButton.onClick = [this]() {
-    trackCounter++;
-    auto* track = new TrackLine("Track " + juce::String(trackCounter));
-    trackLines.add(track);
-    addAndMakeVisible(track);
-    resized();
-    };
+        trackCounter++;
+        auto* track = new TrackLine("Track " + juce::String(trackCounter));
+        trackLines.add(track);
+        addAndMakeVisible(track);
+        resized();
+
+        addAudioSource(track->getAudioPlayer());
+        };
+
 
     addAndMakeVisible(addTrackButton);
 
@@ -73,11 +76,10 @@ void MainComponent::releaseResources()
 {
     transportSource.releaseResources();
 }
-
 void MainComponent::resized()
 {
     auto area = getLocalBounds();
-    
+
     auto buttonHeight = 40;
     auto buttonArea = area.removeFromTop(buttonHeight);
     openFileButton.setBounds(buttonArea.removeFromLeft(150));
@@ -87,7 +89,7 @@ void MainComponent::resized()
     saveFileButton.setBounds(buttonArea.removeFromLeft(150));
     addTrackButton.setBounds(buttonArea);
 
-    int trackHeight = 50;
+    int trackHeight = 70; 
     for (auto* track : trackLines)
     {
         track->setBounds(area.removeFromTop(trackHeight));
@@ -255,6 +257,18 @@ void MainComponent::timerCallback()
     repaint(); 
 }
 
+void MainComponent::mouseDrag(const juce::MouseEvent& e)
+{
+    int row = fileListBox.getRowContainingPosition(e.x, e.y);
+    if (row >= 0 && row < loadedFiles.size())
+    {
+        juce::File draggedFile(loadedFiles[row]);
+        juce::DragAndDropContainer::performExternalDragDropOfFiles(
+            { draggedFile.getFullPathName() }, false, nullptr);
+    }
+}
+
+
 void MainComponent::mouseDown(const juce::MouseEvent& e)
 {
     auto waveformArea = getLocalBounds().removeFromBottom(200);
@@ -268,3 +282,5 @@ void MainComponent::mouseDown(const juce::MouseEvent& e)
         repaint();
     }
 }
+
+

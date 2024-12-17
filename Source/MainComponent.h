@@ -3,11 +3,18 @@
 #include <JuceHeader.h>
 #include "TrackLine.h"
 
-class MainComponent : public juce::AudioAppComponent, public juce::ChangeListener, public juce::ListBoxModel, public juce::Timer
+class MainComponent : public juce::AudioAppComponent, public juce::ChangeListener, public juce::ListBoxModel, public juce::Timer ,
+    public juce::DragAndDropContainer
 {
+
 public:
     MainComponent();
     ~MainComponent() override;
+
+    void addAudioSource(juce::AudioSourcePlayer& player)
+    {
+        deviceManager.addAudioCallback(&player);
+    }
 
     void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;
     void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override;
@@ -52,6 +59,10 @@ private:
     void timerCallback() override;
 
     void mouseDown(const juce::MouseEvent& e) override;
+
+    void mouseDrag(const juce::MouseEvent& e) override;
+   
+
     
     juce::OwnedArray<TrackLine> trackLines;
     juce::TextButton addTrackButton{ "Add Track" };
