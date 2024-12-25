@@ -1,4 +1,4 @@
-#include "MainComponent.h"
+﻿#include "MainComponent.h"
 
 MainComponent::MainComponent()
     : thumbnail(512, formatManager, thumbnailCache)
@@ -9,15 +9,17 @@ MainComponent::MainComponent()
         startTimer(30);
         };
     stopButton.onClick = [this]() {
-        transportSource.stop();
-        stopTimer(); 
+        stopAllTracks();
         };
     createEmptyFileButton.onClick = [this]() { createEmptyWavFile(); };
-    saveFileButton.onClick = [this]() { saveCurrentFile(); };
+    saveFileButton.onClick = [this]() { saveAllTracksToFile(); };
+
+    addAndMakeVisible(playAllButton);
+    playAllButton.onClick = [this]() { playAllTracks(); };
 
     addTrackButton.onClick = [this]() {
         trackCounter++;
-        auto* track = new TrackLine("Track " + juce::String(trackCounter));
+        auto* track = new TrackLine(juce::String(trackCounter),*this);
         trackLines.add(track);
         addAndMakeVisible(track);
         resized();
@@ -25,6 +27,41 @@ MainComponent::MainComponent()
         addAudioSource(track->getAudioPlayer());
         };
 
+    addAndMakeVisible(deleteModeButton);
+    deleteModeButton.setButtonText("Delete Mode");
+    deleteModeButton.onClick = [this]()
+        {
+            deleteMode = !deleteMode;
+            maxtime = 0;
+
+            for (auto* track : trackLines)
+            {
+                track->maxtimeset();
+            }
+
+            repaint(); 
+        };
+
+
+    slider.setRange(0.1, 4, 0.1);  
+    slider.setValue(1);             
+    slider.onValueChange = [this]() {
+
+        //slidertext.setText(juce::String(slider.getValue()), juce::dontSendNotification);
+        DBG(juce::String(slider.getValue()));
+        setglobalrate(slider.getValue());
+        DBG(juce::String(rate));
+        };         
+
+    
+    slidertext.setText("50.0");       
+    slidertext.setMultiLine(false);   
+    
+
+
+    
+    addAndMakeVisible(slider);
+    addAndMakeVisible(slidertext);
 
     addAndMakeVisible(addTrackButton);
 
@@ -53,6 +90,20 @@ MainComponent::~MainComponent()
     shutdownAudio();
     stopTimer();
 }
+
+
+void MainComponent::setglobalrate(double opp) {
+    
+    rate = 44100* opp;
+
+    for (int i = 0; i < trackLines.size(); i++) {
+    
+        trackLines[i]->setrate(opp);
+    
+    }
+
+
+};
 
 void MainComponent::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
 {
@@ -88,8 +139,14 @@ void MainComponent::resized()
     createEmptyFileButton.setBounds(buttonArea.removeFromLeft(150));
     saveFileButton.setBounds(buttonArea.removeFromLeft(150));
     addTrackButton.setBounds(buttonArea);
+    playAllButton.setBounds(area.removeFromTop(40).removeFromLeft(150));
 
-    int trackHeight = 70; 
+    slider.setBounds(area.removeFromTop(40).removeFromLeft(150));
+    
+
+    deleteModeButton.setBounds(area.removeFromTop(40).removeFromLeft(450));
+
+    int trackHeight = 70;
     for (auto* track : trackLines)
     {
         track->setBounds(area.removeFromTop(trackHeight));
@@ -148,6 +205,7 @@ void MainComponent::changeListenerCallback(juce::ChangeBroadcaster* source)
     }
 }
 
+
 void MainComponent::openFileChooser()
 {
     fileChooser = std::make_unique<juce::FileChooser>(
@@ -196,10 +254,10 @@ void MainComponent::createEmptyWavFile()
             std::unique_ptr<juce::FileOutputStream> stream(file.createOutputStream());
             if (stream != nullptr)
             {
-                std::unique_ptr<juce::AudioFormatWriter> writer(format.createWriterFor(stream.get(), 44100.0, 2, 16, {}, 0));
+                std::unique_ptr<juce::AudioFormatWriter> writer(format.createWriterFor(stream.get(), rate, 2, 16, {}, 0));
                 if (writer != nullptr)
                 {
-                    juce::AudioSampleBuffer buffer(2, 44100);
+                    juce::AudioSampleBuffer buffer(2, rate);
                     for (int channel = 0; channel < 2; ++channel)
                     {
                         buffer.clear(channel, 0, buffer.getNumSamples());
@@ -233,6 +291,7 @@ void MainComponent::paintListBoxItem(int row, juce::Graphics& g, int width, int 
 void MainComponent::listBoxItemClicked(int row, const juce::MouseEvent& e)
 {
     auto filePath = loadedFiles[row];
+    selected = loadedFiles[row];
     trackLabel.setText("Selected: " + juce::File(filePath).getFileName(), juce::dontSendNotification);
 
     auto* reader = formatManager.createReaderFor(juce::File(filePath));
@@ -254,7 +313,12 @@ void MainComponent::listBoxItemClicked(int row, const juce::MouseEvent& e)
 
 void MainComponent::timerCallback()
 {
-    repaint(); 
+  
+   
+
+    
+
+    repaint();
 }
 
 void MainComponent::mouseDrag(const juce::MouseEvent& e)
@@ -282,5 +346,95 @@ void MainComponent::mouseDown(const juce::MouseEvent& e)
         repaint();
     }
 }
+void MainComponent::playAllTracks()
+{
+    for (auto* track : trackLines)
+    {
+        track->startPlaying(); 
+    }
+}
 
 
+
+void MainComponent::stopAllTracks()
+{
+    for (auto* track : trackLines)
+    {
+        track->stopPlaying(); 
+    }
+}
+
+void MainComponent::saveAllTracksToFile()
+{
+   
+    juce::File outputFile = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("MixedTrack.wav");
+
+    int sampleRate = rate;
+    int totalSamples = static_cast<int>(maxtime * sampleRate);
+   
+    juce::AudioBuffer<float> combinedBuffer(2, totalSamples);  
+
+
+
+  
+    combinedBuffer.clear();
+
+   
+    for (int i = 0; i < trackLines.size(); ++i)
+    {
+        juce::AudioFormatManager formatManager;
+        formatManager.registerBasicFormats(); 
+
+      
+        juce::AudioBuffer<float> trackBuffer = trackLines[i]->saveToBuffer();
+
+       
+  
+
+      
+        if (trackBuffer.getNumChannels() == 2 && trackBuffer.getNumSamples() == totalSamples)
+        {
+            
+            for (int channel = 0; channel < 2; ++channel)
+            {
+                for (int sample = 0; sample < totalSamples; ++sample)
+                {
+                   
+                    float newSample = combinedBuffer.getSample(channel, sample) + trackBuffer.getSample(channel, sample);
+                    combinedBuffer.setSample(channel, sample, newSample);
+                }
+            }
+        }
+        else
+        {
+            // Логирование ошибки, если размеры не совпадают
+            DBG("Размеры буфера не совпадают! trackBuffer channels: " + juce::String(trackBuffer.getNumChannels()) +
+                ", trackBuffer samples: " + juce::String(trackBuffer.getNumSamples()) +
+                ", ожидаем: 2 канала и " + juce::String(totalSamples) + " сэмплов.");
+        }
+    }
+
+    
+
+    juce::WavAudioFormat wavFormat;
+    //std::unique_ptr<juce::FileOutputStream> fileStream(outputFile.createOutputStream());
+
+    juce::FileOutputStream* fileStream = new juce::FileOutputStream(outputFile);
+
+    std::unique_ptr<juce::AudioFormatWriter> writer(wavFormat.createWriterFor(fileStream, rate, 2, 16, {}, 0));
+
+
+
+    
+
+    if (writer)
+    {
+        writer->writeFromAudioSampleBuffer(combinedBuffer, 0, totalSamples);
+
+        DBG("Track saved to: " + outputFile.getFullPathName());
+    }
+    else
+    {
+        DBG("Failed to create writer.");
+    }
+}

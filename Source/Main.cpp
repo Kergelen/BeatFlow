@@ -1,6 +1,7 @@
 #include <JuceHeader.h>
 #include "MainComponent.h"
 
+
 class AudioTrackApp : public juce::JUCEApplication
 {
 public:
@@ -10,12 +11,16 @@ public:
 
     void initialise(const juce::String&) override
     {
-        mainWindow = std::make_unique<MainWindow>("Audio Track App", new MainComponent());
+        mainComponent = new MainComponent();  // ??????? ????????? MainComponent
+        mainWindow = std::make_unique<MainWindow>("Audio Track App", mainComponent);
+
+        
     }
 
     void shutdown() override
     {
         mainWindow = nullptr;
+        mainComponent = nullptr;  // ??????????? ??????
     }
 
 private:
@@ -42,6 +47,7 @@ private:
     };
 
     std::unique_ptr<MainWindow> mainWindow;
+    MainComponent* mainComponent = nullptr;  // ?????? ?? MainComponent
 };
 
 START_JUCE_APPLICATION(AudioTrackApp)
