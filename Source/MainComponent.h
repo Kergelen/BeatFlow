@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <JuceHeader.h>
 #include "TrackLine.h"
@@ -21,16 +21,37 @@ public:
     void releaseResources() override;
     void resized() override;
     void paint(juce::Graphics& g) override;
-
+    juce::String selected;
+    MainComponent* mainComponent = nullptr;
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
 
+    void stopAllTracks() ;
+    void againe();
+    bool play = false , deleteMode = false;
+    double maxtime = 0;
+    juce::OwnedArray<TrackLine> trackLines;
+
+    juce::Array<TrackLine*> getTrackLines();
+    double rate = 44100;
+    void setglobalrate(double x);
+
+   
+
 private:
+
+    juce::Slider slider;
+    juce::TextEditor slidertext;
+
     juce::TextButton openFileButton{ "Select File" };
     juce::TextButton playButton{ "Play" };
     juce::TextButton stopButton{ "Stop" };
     juce::TextButton createEmptyFileButton{ "Create Empty File" };
     juce::TextButton saveFileButton{ "Save File" };
     juce::Label trackLabel;
+    juce::TextButton playAllButton{ "Play All" };
+    juce::TextButton  deleteModeButton;
+
+    void playAllTracks();
 
     juce::AudioFormatManager formatManager;
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
@@ -45,6 +66,7 @@ private:
 
     double currentPlayheadPosition = 0.0; 
     double totalTrackLength = 0.0; 
+    
 
     void openFileChooser();
     void createEmptyWavFile();
@@ -64,9 +86,11 @@ private:
    
 
     
-    juce::OwnedArray<TrackLine> trackLines;
+    
     juce::TextButton addTrackButton{ "Add Track" };
     int trackCounter = 0;
+    void saveAllTracksToFile();
+   
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
