@@ -3,7 +3,7 @@
 #include <JuceHeader.h>
 #include "TrackLine.h"
 
-class MainComponent : public juce::AudioAppComponent, public juce::ChangeListener, public juce::ListBoxModel, public juce::Timer ,
+class MainComponent : public juce::AudioAppComponent, public juce::ChangeListener, public juce::ListBoxModel, public juce::Timer,
     public juce::DragAndDropContainer
 {
 
@@ -25,17 +25,21 @@ public:
     MainComponent* mainComponent = nullptr;
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;
 
-    void stopAllTracks() ;
+    void stopAllTracks();
     void againe();
-    bool play = false , deleteMode = false;
+    bool play = false, deleteMode = false;
     double maxtime = 0;
     juce::OwnedArray<TrackLine> trackLines;
 
     juce::Array<TrackLine*> getTrackLines();
     double rate = 44100;
     void setglobalrate(double x);
+    void saveProject();
+    void openProject();
 
-   
+    void restartApplication();
+    void loadProject(const juce::File file);
+
 
 private:
 
@@ -45,8 +49,9 @@ private:
     juce::TextButton openFileButton{ "Select File" };
     juce::TextButton playButton{ "Play" };
     juce::TextButton stopButton{ "Stop" };
-    juce::TextButton createEmptyFileButton{ "Create Empty File" };
+    juce::TextButton createEmptyFileButton{ "open Project" };
     juce::TextButton saveFileButton{ "Save File" };
+    juce::TextButton saveProButton{ "Save Project" };
     juce::Label trackLabel;
     juce::TextButton playAllButton{ "Play All" };
     juce::TextButton  deleteModeButton;
@@ -64,9 +69,9 @@ private:
     juce::ListBox fileListBox;
     juce::StringArray loadedFiles;
 
-    double currentPlayheadPosition = 0.0; 
-    double totalTrackLength = 0.0; 
-    
+    double currentPlayheadPosition = 0.0;
+    double totalTrackLength = 0.0;
+
 
     void openFileChooser();
     void createEmptyWavFile();
@@ -83,14 +88,14 @@ private:
     void mouseDown(const juce::MouseEvent& e) override;
 
     void mouseDrag(const juce::MouseEvent& e) override;
-   
 
-    
-    
+
+
+
     juce::TextButton addTrackButton{ "Add Track" };
     int trackCounter = 0;
     void saveAllTracksToFile();
-   
+
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

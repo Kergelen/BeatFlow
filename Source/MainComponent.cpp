@@ -11,15 +11,18 @@ MainComponent::MainComponent()
     stopButton.onClick = [this]() {
         stopAllTracks();
         };
-    createEmptyFileButton.onClick = [this]() { createEmptyWavFile(); };
+    createEmptyFileButton.onClick = [this]() { openProject(); };
     saveFileButton.onClick = [this]() { saveAllTracksToFile(); };
+
+    addAndMakeVisible(saveProButton);
+    saveProButton.onClick = [this]() { saveProject(); };
 
     addAndMakeVisible(playAllButton);
     playAllButton.onClick = [this]() { playAllTracks(); };
 
     addTrackButton.onClick = [this]() {
         trackCounter++;
-        auto* track = new TrackLine(juce::String(trackCounter),*this);
+        auto* track = new TrackLine(juce::String(trackCounter), *this);
         trackLines.add(track);
         addAndMakeVisible(track);
         resized();
@@ -39,27 +42,27 @@ MainComponent::MainComponent()
                 track->maxtimeset();
             }
 
-            repaint(); 
+            repaint();
         };
 
 
-    slider.setRange(0.1, 4, 0.1);  
-    slider.setValue(1);             
+    slider.setRange(0.1, 4, 0.1);
+    slider.setValue(1);
     slider.onValueChange = [this]() {
 
         //slidertext.setText(juce::String(slider.getValue()), juce::dontSendNotification);
         DBG(juce::String(slider.getValue()));
         setglobalrate(slider.getValue());
         DBG(juce::String(rate));
-        };         
-
-    
-    slidertext.setText("50.0");       
-    slidertext.setMultiLine(false);   
-    
+        };
 
 
-    
+    slidertext.setText("50.0");
+    slidertext.setMultiLine(false);
+
+
+
+
     addAndMakeVisible(slider);
     addAndMakeVisible(slidertext);
 
@@ -93,13 +96,13 @@ MainComponent::~MainComponent()
 
 
 void MainComponent::setglobalrate(double opp) {
-    
-    rate = 44100* opp;
+
+    rate = 44100 * opp;
 
     for (int i = 0; i < trackLines.size(); i++) {
-    
+
         trackLines[i]->setrate(opp);
-    
+
     }
 
 
@@ -140,9 +143,12 @@ void MainComponent::resized()
     saveFileButton.setBounds(buttonArea.removeFromLeft(150));
     addTrackButton.setBounds(buttonArea);
     playAllButton.setBounds(area.removeFromTop(40).removeFromLeft(150));
+    saveProButton.setBounds(area.removeFromTop(40).removeFromLeft(150));
+
+
 
     slider.setBounds(area.removeFromTop(40).removeFromLeft(150));
-    
+
 
     deleteModeButton.setBounds(area.removeFromTop(40).removeFromLeft(450));
 
@@ -313,10 +319,10 @@ void MainComponent::listBoxItemClicked(int row, const juce::MouseEvent& e)
 
 void MainComponent::timerCallback()
 {
-  
-   
 
-    
+
+
+
 
     repaint();
 }
@@ -350,7 +356,7 @@ void MainComponent::playAllTracks()
 {
     for (auto* track : trackLines)
     {
-        track->startPlaying(); 
+        track->startPlaying();
     }
 }
 
@@ -360,46 +366,46 @@ void MainComponent::stopAllTracks()
 {
     for (auto* track : trackLines)
     {
-        track->stopPlaying(); 
+        track->stopPlaying();
     }
 }
 
 void MainComponent::saveAllTracksToFile()
 {
-   
+
     juce::File outputFile = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("MixedTrack.wav");
 
     int sampleRate = rate;
     int totalSamples = static_cast<int>(maxtime * sampleRate);
-   
-    juce::AudioBuffer<float> combinedBuffer(2, totalSamples);  
+
+    juce::AudioBuffer<float> combinedBuffer(2, totalSamples);
 
 
 
-  
+
     combinedBuffer.clear();
 
-   
+
     for (int i = 0; i < trackLines.size(); ++i)
     {
         juce::AudioFormatManager formatManager;
-        formatManager.registerBasicFormats(); 
+        formatManager.registerBasicFormats();
 
-      
+
         juce::AudioBuffer<float> trackBuffer = trackLines[i]->saveToBuffer();
 
-       
-  
 
-      
+
+
+
         if (trackBuffer.getNumChannels() == 2 && trackBuffer.getNumSamples() == totalSamples)
         {
-            
+
             for (int channel = 0; channel < 2; ++channel)
             {
                 for (int sample = 0; sample < totalSamples; ++sample)
                 {
-                   
+
                     float newSample = combinedBuffer.getSample(channel, sample) + trackBuffer.getSample(channel, sample);
                     combinedBuffer.setSample(channel, sample, newSample);
                 }
@@ -414,7 +420,7 @@ void MainComponent::saveAllTracksToFile()
         }
     }
 
-    
+
 
     juce::WavAudioFormat wavFormat;
     //std::unique_ptr<juce::FileOutputStream> fileStream(outputFile.createOutputStream());
@@ -425,7 +431,7 @@ void MainComponent::saveAllTracksToFile()
 
 
 
-    
+
 
     if (writer)
     {
@@ -437,4 +443,156 @@ void MainComponent::saveAllTracksToFile()
     {
         DBG("Failed to create writer.");
     }
+}
+
+
+
+
+
+void MainComponent::saveProject()
+{
+
+    fileChooser = std::make_unique<juce::FileChooser>("Save Project", juce::File{}, "*.bfproject");
+
+    fileChooser->launchAsync(juce::FileBrowserComponent::saveMode, [this](const juce::FileChooser& chooser) {
+        auto file = chooser.getResult();
+
+        if (file != juce::File{})
+        {
+
+            if (!file.hasWriteAccess() && !file.create())
+            {
+                DBG("Failed to create or access file for saving project.");
+                return;
+            }
+
+            juce::FileOutputStream fileStream(file);
+
+            if (!fileStream.openedOk())
+            {
+                DBG("Failed to open file for saving project.");
+                return;
+            }
+            juce::String str;
+
+            fileStream.setPosition(0);
+
+            str = "*rate>" + juce::String(rate);
+            fileStream.writeString(str);
+
+
+
+            for (auto* track : trackLines)
+            {
+                str = "^trackline: \n";
+                fileStream.writeString(str);
+
+                for (int i = 0; i < track->tracks.size(); i++)
+                {
+                    str = "--->" + juce::String(track->pathfile[i]) + "|" + juce::String(track->origStartTimes[i]) + "\n";
+                    fileStream.writeString(str);
+                }
+            }
+
+            DBG("Project saved to: " + file.getFullPathName());
+        }
+        });
+}
+
+
+void MainComponent::restartApplication()
+{
+    juce::File appFile = juce::File::getSpecialLocation(juce::File::currentApplicationFile);
+
+    juce::ChildProcess process;
+    process.start(appFile.getFullPathName());
+
+    juce::JUCEApplication::getInstance()->systemRequestedQuit();
+}
+
+void MainComponent::openProject()
+{
+    fileChooser = std::make_unique<juce::FileChooser>("Open Project", juce::File{}, "*.bfproject");
+
+    fileChooser->launchAsync(juce::FileBrowserComponent::openMode, [this](const juce::FileChooser& chooser) {
+        auto file = chooser.getResult();
+
+        if (file != juce::File{})
+        {
+            file.copyFileTo(juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("loaded.bfproject"));
+            restartApplication();
+        }
+        });
+}
+
+
+void MainComponent::loadProject(const juce::File file)
+{
+
+
+
+
+    if (file != juce::File{})
+    {
+        if (!file.existsAsFile())
+        {
+            DBG("Selected file does not exist.");
+            return;
+        }
+
+        juce::FileInputStream fileStream(file);
+
+        if (!fileStream.openedOk())
+        {
+            DBG("Failed to open file for reading project.");
+            return;
+        }
+
+
+        juce::String content;
+
+        content = fileStream.readNextLine();
+        rate = content.getDoubleValue();
+
+        if (content.startsWith("^rate>")) {
+            juce::String tr = content.substring(6);
+            rate = tr.getDoubleValue();
+        }
+
+        while (!fileStream.isExhausted())
+        {
+            content = fileStream.readNextLine();
+            DBG(content);
+
+
+            if (content.startsWith("^trackline:")) {
+                trackCounter++;
+                auto* track = new TrackLine(juce::String(trackCounter), *this);
+                trackLines.add(track);
+                addAndMakeVisible(track);
+                addAudioSource(track->getAudioPlayer());
+
+            }
+            else
+            {
+                if (content.startsWith("--->")) {
+
+                    int index = content.indexOf("|");
+                    juce::String tr = content.substring(4, index);
+                    juce::String tim = content.substring(index + 1);
+                    trackLines[trackCounter - 1]->filesLoader(tr, tim.getDoubleValue());
+
+                }
+
+            }
+
+
+
+        }
+        setglobalrate(rate);
+        resized();
+
+        DBG("Project opened from: " + file.getFullPathName());
+    }
+
 }
