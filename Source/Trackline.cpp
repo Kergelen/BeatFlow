@@ -758,6 +758,7 @@ void TrackLine::drawWaveformImage(juce::Graphics& g, int trackIndex)
             g.setGradientFill(waveformGradient);
             g.fillRoundedRectangle(xPos, yPos, width, height, 3.0f);
 
+          
             g.setOpacity(0.9f);
             if (tintedWaveformImages.size() > trackIndex)
             {
@@ -767,20 +768,41 @@ void TrackLine::drawWaveformImage(juce::Graphics& g, int trackIndex)
                     tintedWaveformImages[trackIndex].getHeight());
             }
 
+     
             g.setColour(trackColor.darker(0.3f));
             g.drawRoundedRectangle(xPos, yPos, width, height, 3.0f, 1.5f);
 
             
             g.setFont(12.0f);
             juce::String trackInfo = tracks[trackIndex].getFileNameWithoutExtension();
+            float minWidthForLabel = g.getCurrentFont().getStringWidth(trackInfo) + 16; 
 
-            g.setColour(juce::Colours::black.withAlpha(0.5f));
-            g.fillRoundedRectangle(xPos + 4, yPos + 2,
-                g.getCurrentFont().getStringWidth(trackInfo) + 8, 18, 3.0f);
+            
+            if (width >= minWidthForLabel)
+            {
+                
+                g.setColour(juce::Colours::black.withAlpha(0.5f));
+                g.fillRoundedRectangle(xPos + 4, yPos + 2,
+                    g.getCurrentFont().getStringWidth(trackInfo) + 8, 18, 3.0f);
 
-            g.setColour(juce::Colours::white);
-            g.drawText(trackInfo, xPos + 5, yPos + 2, width - 10, 18,
-                juce::Justification::left, true);
+                g.setColour(juce::Colours::white);
+                g.drawText(trackInfo, xPos + 5, yPos + 2, width - 10, 18,
+                    juce::Justification::left, true);
+            }
+            else if (width >= 30)  
+            {
+                
+                juce::String abbreviated = trackInfo.substring(0, 2) + "...";
+                float abbrevWidth = g.getCurrentFont().getStringWidth(abbreviated) + 8;
+
+                g.setColour(juce::Colours::black.withAlpha(0.5f));
+                g.fillRoundedRectangle(xPos + 2, yPos + 2, abbrevWidth, 18, 3.0f);
+
+                g.setColour(juce::Colours::white);
+                g.drawText(abbreviated, xPos + 3, yPos + 2, abbrevWidth - 2, 18,
+                    juce::Justification::left, true);
+            }
+           
         }
     }
 }
