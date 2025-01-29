@@ -22,9 +22,11 @@ public:
     }
 
     TrackLine(const juce::String& name, MainComponent& mc);
-    ~TrackLine(
-
-    ) override;
+    ~TrackLine() override;
+    juce::HashMap<juce::String, juce::Colour> fileColors;
+    // В TrackLine.h в private секцию:
+    juce::Colour getFileColor(const juce::String& filePath);
+    juce::Array<juce::Image> tintedWaveformImages;
 
     void updatePlayableButtonAppearance();
 
@@ -39,10 +41,12 @@ public:
 
     void mouseDown(const juce::MouseEvent& e);
 
+
+
     bool isInterestedInFileDrag(const juce::StringArray& files) override;
     void filesDropped(const juce::StringArray& files, int x, int y) override;
 
-    bool checkIfPlaybackFinished();
+ 
     void maxtimeset();
     juce::AudioSourcePlayer& getAudioPlayer();
     void setTimeScale(double newTimeScale);
@@ -120,8 +124,7 @@ private:
     double timerPosition = 0.0;
     double startDelay = 0.0;
 
-    void startPlayback();
-    void updateTimer();
+
 
     void sorttreck();
 

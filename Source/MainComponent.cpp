@@ -225,7 +225,7 @@ void MainComponent::mouseDrag(const juce::MouseEvent& e)
         lastDragPosition = e.getPosition();
         scrollOffset += deltaX;
         scrollOffset = juce::jlimit(-getWidth() * 10.0f, 0.0f, scrollOffset);
-        // Обновляем все треки
+     
         for (auto* track : trackLines)
         {
             track->setScrollOffset(scrollOffset);
@@ -442,12 +442,73 @@ int MainComponent::getNumRows()
 {
     return loadedFiles.size();
 }
+juce::Colour MainComponent::getRandomPastelColor()
+{
+   
+    auto baseColor = juce::Colour::fromHSV(
+        juce::Random::getSystemRandom().nextFloat(), 
+        0.5f + juce::Random::getSystemRandom().nextFloat() * 0.3f, 
+        0.8f + juce::Random::getSystemRandom().nextFloat() * 0.2f, 
+        1.0f 
+    );
+    return baseColor.interpolatedWith(juce::Colours::white, 0.3f);
+}
+
+juce::Colour MainComponent::getFileColor(const juce::String& filePath)
+{
+    for (auto& fileColor : fileColorMap)
+    {
+        if (fileColor.filePath == filePath)
+            return fileColor.color;
+    }
+
+
+    auto newColor = getRandomPastelColor();
+    fileColorMap.add({ filePath, newColor, false });
+    return newColor;
+}
+
+
 void MainComponent::paintListBoxItem(int row, juce::Graphics& g, int width, int height, bool rowIsSelected)
 {
-    g.fillAll(rowIsSelected ? juce::Colours::lightblue : juce::Colours::white);
-    g.setColour(juce::Colours::black);
-    g.drawText(loadedFiles[row], 0, 0, width, height, juce::Justification::centredLeft, true);
+    if (row >= 0 && row < loadedFiles.size())
+    {
+        auto filePath = loadedFiles[row];
+        auto fileColor = getFileColor(filePath);
+
+       
+        if (rowIsSelected)
+        {
+            g.setColour(fileColor.brighter(0.2f));
+            g.fillRoundedRectangle(1.0f, 1.0f, width - 2.0f, height - 2.0f, 4.0f);
+            g.setColour(fileColor.brighter(0.5f));
+            g.drawRoundedRectangle(1.0f, 1.0f, width - 2.0f, height - 2.0f, 4.0f, 1.5f);
+        }
+        else
+        {
+            g.setColour(fileColor.withAlpha(0.3f));
+            g.fillRoundedRectangle(1.0f, 1.0f, width - 2.0f, height - 2.0f, 4.0f);
+        }
+
+       
+        g.setColour(rowIsSelected ? juce::Colours::white : juce::Colours::black);
+        g.setFont(14.0f);
+
+        auto fileName = juce::File(filePath).getFileNameWithoutExtension();
+        g.drawText(fileName, 10, 0, width - 20, height, juce::Justification::centredLeft);
+
+        auto* reader = formatManager.createReaderFor(juce::File(filePath));
+        if (reader != nullptr)
+        {
+            double durationSeconds = reader->lengthInSamples / reader->sampleRate;
+            juce::String duration = juce::String(durationSeconds, 1) + "s";
+            g.setFont(12.0f);
+            g.drawText(duration, width - 60, 0, 50, height, juce::Justification::centredRight);
+            delete reader;
+        }
+    }
 }
+
 void MainComponent::listBoxItemClicked(int row, const juce::MouseEvent& e)
 {
     auto filePath = loadedFiles[row];
@@ -471,29 +532,7 @@ void MainComponent::timerCallback()
 {
     repaint();
 }
-//void MainComponent::mouseDrag(const juce::MouseEvent& e)
-//{
-//    int row = fileListBox.getRowContainingPosition(e.x, e.y);
-//    if (row >= 0 && row < loadedFiles.size())
-//    {
-//        juce::File draggedFile(loadedFiles[row]);
-//        juce::DragAndDropContainer::performExternalDragDropOfFiles(
-//            { draggedFile.getFullPathName() }, false, nullptr);
-//    }
-//}
-//void MainComponent::mouseDown(const juce::MouseEvent& e)
-//{
-//    auto waveformArea = getLocalBounds().removeFromBottom(200);
-//    if (waveformArea.contains(e.getPosition()))
-//    {
-//        double clickedTime = (double)(e.getPosition().getX()) / waveformArea.getWidth() * totalTrackLength;
-//
-//        transportSource.setPosition(clickedTime);
-//        repaint();
-//        //transportSource.start();
-//        repaint();
-//    }
-//}
+
 void MainComponent::playAllTracks()
 {
     if (!isPlaying)
@@ -604,8 +643,21 @@ void MainComponent::saveProject()
             }
             juce::String str;
             fileStream.setPosition(0);
+
+        
             str = "*rate>" + juce::String(rate);
             fileStream.writeString(str);
+
+      
+            str = "\n*files:\n";
+            fileStream.writeString(str);
+            for (const auto& loadedFile : loadedFiles)
+            {
+                str = "file>" + loadedFile + "\n";
+                fileStream.writeString(str);
+            }
+
+        
             for (auto* track : trackLines)
             {
                 str = "^trackline: \n";
@@ -654,6 +706,10 @@ void MainComponent::loadProject(const juce::File file)
             DBG("Failed to open file for reading project.");
             return;
         }
+
+
+        loadedFiles.clear();
+
         juce::String content;
         content = fileStream.readNextLine();
         rate = content.getDoubleValue();
@@ -661,29 +717,54 @@ void MainComponent::loadProject(const juce::File file)
             juce::String tr = content.substring(6);
             rate = tr.getDoubleValue();
         }
+
+        bool readingFiles = false;
+
         while (!fileStream.isExhausted())
         {
             content = fileStream.readNextLine();
             DBG(content);
-            if (content.startsWith("^trackline:")) {
+
+            if (content.startsWith("*files:")) {
+                readingFiles = true;
+                continue;
+            }
+            else if (content.startsWith("^trackline:")) {
+                readingFiles = false;
                 trackCounter++;
                 auto* track = new TrackLine(juce::String(trackCounter), *this);
+
+         
+                track->playableButton.setButtonText("");
+                track->playableButton.setColour(juce::TextButton::buttonColourId, juce::Colour(70, 130, 180));
+                track->playableButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(65, 105, 225));
+                track->playableButton.setTooltip("Toggle Track Playback");
+                track->playableButton.onClick = [track]() {
+                    track->playable = !track->playable;
+                    track->updatePlayableButtonAppearance();
+                    track->repaint();
+                    };
+
                 trackLines.add(track);
                 addAndMakeVisible(track);
+                addAndMakeVisible(track->playableButton);
                 addAudioSource(track->getAudioPlayer());
             }
-            else
-            {
-                if (content.startsWith("--->")) {
-                    int index = content.indexOf("|");
-                    juce::String tr = content.substring(4, index);
-                    juce::String tim = content.substring(index + 1);
-                    trackLines[trackCounter - 1]->filesLoader(tr, tim.getDoubleValue());
-                }
+            else if (readingFiles && content.startsWith("file>")) {
+                juce::String filePath = content.substring(5);
+                loadedFiles.add(filePath);
+            }
+            else if (content.startsWith("--->")) {
+                int index = content.indexOf("|");
+                juce::String tr = content.substring(4, index);
+                juce::String tim = content.substring(index + 1);
+                trackLines[trackCounter - 1]->filesLoader(tr, tim.getDoubleValue());
             }
         }
+
         setglobalrate(rate);
         resized();
-        DBG("Project opened from: " + file.getFullPathName());
+        fileListBox.updateContent(); 
+       
     }
 }

@@ -89,6 +89,17 @@ public:
 	double currentZoom = 1.0;
     double playheadPosition = 0.0;
     bool isPlaying = false;
+    
+    struct FileColors {
+        juce::String filePath;
+        juce::Colour color;
+        bool isSelected;
+    };
+
+    juce::Array<FileColors> fileColorMap;
+    juce::Colour getRandomPastelColor();
+    juce::Colour getFileColor(const juce::String& filePath);
+
 private:
 
 

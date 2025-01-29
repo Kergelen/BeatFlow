@@ -1,4 +1,4 @@
-#include "TrackLine.h"
+﻿#include "TrackLine.h"
 #include "MainComponent.h"  
 
 TrackLine::TrackLine(const juce::String& name, MainComponent& mc)
@@ -285,6 +285,7 @@ void TrackLine::mouseUp(const juce::MouseEvent& e)
         pathfile.remove(selectedForDeletion);
         trackStartTimes.remove(selectedForDeletion);
         waveformImages.remove(selectedForDeletion);
+        tintedWaveformImages.remove(selectedForDeletion);
         audioDurations.remove(selectedForDeletion);
         origStartTimes.remove(selectedForDeletion);
 
@@ -313,18 +314,30 @@ void TrackLine::mouseUp(const juce::MouseEvent& e)
 
         if (finalPosition >= 0)
         {
+       
+            juce::File file = tracks[draggedTrackIndex];
+            juce::String path = pathfile[draggedTrackIndex];
+            juce::Image waveform = waveformImages[draggedTrackIndex];
+            juce::Image tinted = tintedWaveformImages[draggedTrackIndex];
+            double duration = audioDurations[draggedTrackIndex];
+
+        
             tracks.remove(draggedTrackIndex);
             pathfile.remove(draggedTrackIndex);
             trackStartTimes.remove(draggedTrackIndex);
             waveformImages.remove(draggedTrackIndex);
+            tintedWaveformImages.remove(draggedTrackIndex);
             audioDurations.remove(draggedTrackIndex);
             origStartTimes.remove(draggedTrackIndex);
 
-            tracks.add(draggedFile);
-            pathfile.add(draggedFile.getFullPathName());
+      
+            tracks.add(file);
+            pathfile.add(path);
             trackStartTimes.add(finalPosition);
+            waveformImages.add(waveform);
+            tintedWaveformImages.add(tinted);
+            audioDurations.add(duration);
             origStartTimes.add(finalPosition * (rate / 44100.0));
-            loadAudioData(draggedFile);
 
             sorttreck();
             maxtimeset();
@@ -366,10 +379,6 @@ void TrackLine::mouseUp(const juce::MouseEvent& e)
                 }
             }
         }
-    }
-    else if (hasMovedSinceMouseDown)
-    {
-        setMouseCursor(juce::MouseCursor::NormalCursor);
     }
 
     hasMovedSinceMouseDown = false;
@@ -428,29 +437,55 @@ double TrackLine::findNearestFreePosition(double desiredPosition, double duratio
 
 void TrackLine::sorttreck()
 {
-    juce::Array<std::tuple<juce::File, juce::String, double, juce::Image, double, double>> tracksWithDetails;
-
-    for (int i = 0; i < tracks.size(); ++i)
+    struct TrackSorter
     {
-        tracksWithDetails.add({ tracks[i], pathfile[i], trackStartTimes[i],
-                              waveformImages[i], audioDurations[i], origStartTimes[i] });
-    }
-
-    std::sort(tracksWithDetails.begin(), tracksWithDetails.end(),
-        [](const auto& a, const auto& b)
+        static int compareElements(const std::pair<int, double>& first,
+            const std::pair<int, double>& second)
         {
-            return std::get<2>(a) < std::get<2>(b);
-        });
+            return first.second < second.second ? -1 : (first.second > second.second ? 1 : 0);
+        }
+    };
 
-    for (int i = 0; i < tracksWithDetails.size(); ++i)
+
+    juce::Array<std::pair<int, double>> sortPairs;
+    for (int i = 0; i < trackStartTimes.size(); ++i)
     {
-        tracks.set(i, std::get<0>(tracksWithDetails[i]));
-        pathfile.set(i, std::get<1>(tracksWithDetails[i]));
-        trackStartTimes.set(i, std::get<2>(tracksWithDetails[i]));
-        waveformImages.set(i, std::get<3>(tracksWithDetails[i]));
-        audioDurations.set(i, std::get<4>(tracksWithDetails[i]));
-        origStartTimes.set(i, std::get<5>(tracksWithDetails[i]));
+        sortPairs.add(std::make_pair(i, trackStartTimes[i]));
     }
+
+
+    sortPairs.sort(TrackSorter());
+
+
+    juce::Array<juce::File> sortedTracks;
+    juce::Array<juce::String> sortedPaths;
+    juce::Array<double> sortedStartTimes;
+    juce::Array<juce::Image> sortedWaveforms;
+    juce::Array<juce::Image> sortedTinted;
+    juce::Array<double> sortedDurations;
+    juce::Array<double> sortedOrigTimes;
+
+ 
+    for (auto& pair : sortPairs)
+    {
+        int i = pair.first;
+        sortedTracks.add(tracks[i]);
+        sortedPaths.add(pathfile[i]);
+        sortedStartTimes.add(trackStartTimes[i]);
+        sortedWaveforms.add(waveformImages[i]);
+        sortedTinted.add(tintedWaveformImages[i]);
+        sortedDurations.add(audioDurations[i]);
+        sortedOrigTimes.add(origStartTimes[i]);
+    }
+
+
+    tracks = sortedTracks;
+    pathfile = sortedPaths;
+    trackStartTimes = sortedStartTimes;
+    waveformImages = sortedWaveforms;
+    tintedWaveformImages = sortedTinted;
+    audioDurations = sortedDurations;
+    origStartTimes = sortedOrigTimes;
 }
 
 void TrackLine::maxtimeset()
@@ -596,7 +631,6 @@ void TrackLine::stopPlaying()
     playheadPosition = 0;
     repaint();
 }
-
 void TrackLine::loadAudioData(const juce::File& file)
 {
     juce::AudioFormatReader* reader = formatManager.createReaderFor(file);
@@ -606,8 +640,33 @@ void TrackLine::loadAudioData(const juce::File& file)
         reader->read(&buffer, 0, reader->lengthInSamples, 0, true, true);
         audioDurations.add(buffer.getNumSamples() / static_cast<double>(rate));
 
-        juce::Image waveformImage = createWaveformImage(buffer);
-        waveformImages.add(waveformImage);
+        juce::Image baseWaveform = createWaveformImage(buffer);
+        waveformImages.add(baseWaveform);
+
+        juce::Colour trackColor = mainComponent.getFileColor(file.getFullPathName());
+        juce::Image tintedImage = juce::Image(juce::Image::ARGB,
+            baseWaveform.getWidth(),
+            baseWaveform.getHeight(),
+            true);
+
+   
+        for (int y = 0; y < baseWaveform.getHeight(); ++y)
+        {
+            for (int x = 0; x < baseWaveform.getWidth(); ++x)
+            {
+                juce::Colour originalPixel = baseWaveform.getPixelAt(x, y);
+                float alpha = originalPixel.getAlpha() / 255.0f;
+
+               
+                if (alpha > 0.0f)
+                {
+                    juce::Colour newColor = trackColor.withAlpha(alpha);
+                    tintedImage.setPixelAt(x, y, newColor);
+                }
+            }
+        }
+
+        tintedWaveformImages.add(tintedImage);
         delete reader;
     }
 }
@@ -616,18 +675,10 @@ juce::Image TrackLine::createWaveformImage(const juce::AudioBuffer<float>& buffe
 {
     int width = 500;
     int height = 50;
-    juce::Image image(juce::Image::RGB, width, height, true);
+    juce::Image image(juce::Image::ARGB, width, height, true);
     juce::Graphics g(image);
 
     g.fillAll(juce::Colours::transparentBlack);
-
-    juce::ColourGradient gradient(
-        juce::Colour(129, 161, 193),
-        0, height * 0.5f,
-        juce::Colour(94, 129, 172),
-        0, height,
-        false);
-    g.setGradientFill(gradient);
 
     int numChannels = buffer.getNumChannels();
     int numSamples = buffer.getNumSamples();
@@ -672,7 +723,7 @@ juce::Image TrackLine::createWaveformImage(const juce::AudioBuffer<float>& buffe
         lastY = y;
     }
 
-    g.setColour(juce::Colours::white.withAlpha(0.7f));
+    g.setColour(juce::Colours::white);
     g.strokePath(p, juce::PathStrokeType(1.5f));
 
     p.applyTransform(juce::AffineTransform::verticalFlip((float)height));
@@ -681,9 +732,10 @@ juce::Image TrackLine::createWaveformImage(const juce::AudioBuffer<float>& buffe
     return image;
 }
 
-void TrackLine::drawWaveformImage(juce::Graphics & g, int trackIndex)
+void TrackLine::drawWaveformImage(juce::Graphics& g, int trackIndex)
 {
-    if (waveformImages.size() > trackIndex && audioDurations.size() > trackIndex && trackStartTimes.size() > trackIndex)
+    if (waveformImages.size() > trackIndex && audioDurations.size() > trackIndex &&
+        trackStartTimes.size() > trackIndex && trackIndex < tracks.size())
     {
         double trackStartTime = trackStartTimes[trackIndex];
         double trackDuration = audioDurations[trackIndex];
@@ -694,10 +746,12 @@ void TrackLine::drawWaveformImage(juce::Graphics & g, int trackIndex)
 
         if (xPos + width >= 0 && xPos <= getWidth())
         {
+            juce::Colour trackColor = mainComponent.getFileColor(tracks[trackIndex].getFullPathName());
+
             juce::ColourGradient waveformGradient(
-                juce::Colour(70, 130, 180).withAlpha(0.6f),
+                trackColor.withAlpha(0.6f),
                 xPos, yPos,
-                juce::Colour(65, 105, 225).withAlpha(0.6f),
+                trackColor.darker(0.2f).withAlpha(0.6f),
                 xPos, yPos + height,
                 false
             );
@@ -705,24 +759,32 @@ void TrackLine::drawWaveformImage(juce::Graphics & g, int trackIndex)
             g.fillRoundedRectangle(xPos, yPos, width, height, 3.0f);
 
             g.setOpacity(0.9f);
-            g.drawImage(waveformImages[trackIndex],
-                xPos, yPos, width, height,
-                0, 0, waveformImages[trackIndex].getWidth(),
-                waveformImages[trackIndex].getHeight());
+            if (tintedWaveformImages.size() > trackIndex)
+            {
+                g.drawImage(tintedWaveformImages[trackIndex],
+                    xPos, yPos, width, height,
+                    0, 0, tintedWaveformImages[trackIndex].getWidth(),
+                    tintedWaveformImages[trackIndex].getHeight());
+            }
 
-            g.setColour(juce::Colours::black.withAlpha(0.3f));
-            g.drawRoundedRectangle(xPos + 1, yPos + 1, width, height, 3.0f, 1.0f);
-            g.setColour(juce::Colours::lightblue.withAlpha(0.5f));
-            g.drawRoundedRectangle(xPos, yPos, width, height, 3.0f, 1.0f);
+            g.setColour(trackColor.darker(0.3f));
+            g.drawRoundedRectangle(xPos, yPos, width, height, 3.0f, 1.5f);
 
-            g.setColour(juce::Colours::white.withAlpha(0.8f));
+            
             g.setFont(12.0f);
             juce::String trackInfo = tracks[trackIndex].getFileNameWithoutExtension();
+
+            g.setColour(juce::Colours::black.withAlpha(0.5f));
+            g.fillRoundedRectangle(xPos + 4, yPos + 2,
+                g.getCurrentFont().getStringWidth(trackInfo) + 8, 18, 3.0f);
+
+            g.setColour(juce::Colours::white);
             g.drawText(trackInfo, xPos + 5, yPos + 2, width - 10, 18,
                 juce::Justification::left, true);
         }
     }
 }
+
 
 void TrackLine::drawPlayhead(juce::Graphics & g)
 {
@@ -836,4 +898,27 @@ juce::AudioBuffer<float> TrackLine::saveToBuffer()
     }
 
     return juce::AudioBuffer<float>(2, 0);
+}
+
+juce::Colour TrackLine::getFileColor(const juce::String& filePath)
+{
+
+    if (fileColors.contains(filePath))
+        return fileColors[filePath];
+
+
+    juce::String fileName = juce::File(filePath).getFileNameWithoutExtension();
+    juce::uint32 hash = 0;
+    for (int i = 0; i < fileName.length(); ++i)
+        hash = 65599 * hash + fileName[i];
+
+    juce::Colour color = juce::Colour::fromHSV(
+        std::fmod(hash / 1000.0f, 1.0f), 
+        0.7f,  
+        0.9f,  
+        1.0f   
+    );
+
+    fileColors.set(filePath, color);
+    return color;
 }
